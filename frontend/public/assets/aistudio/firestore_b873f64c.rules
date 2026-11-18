@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'sozinytbno1@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'ma', 'hoTen', 'email', 'vaiTro', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'ma', 'hoTen', 'email', 'photoUrl', 'vaiTro', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.ma is string
+        && data.ma.size() >= 2
+        && data.ma.size() <= 20
+        && data.ma.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.hoTen is string
+        && data.hoTen.size() >= 1
+        && data.hoTen.size() <= 120
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 200
+        && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500))
+        && data.vaiTro in ['KHACH_HANG', 'NHAN_VIEN_BAN_HANG', 'THU_KHO', 'QUAN_TRI']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'createdAt'])
+        && isValidId(data.uid)
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 200
+        && data.createdAt is timestamp;
+    }
+
+    // User profiles (PII: email restricted to owner or admin)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
+
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && request.auth.uid == userId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          incoming().vaiTro == 'KHACH_HANG'
+          || (incoming().vaiTro == 'QUAN_TRI' && isBootstrappedAdmin())
+        );
+
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().ma == existing().ma
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isOwner(userId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['hoTen', 'photoUrl', 'email', 'updatedAt'])
+            && incoming().vaiTro == existing().vaiTro
+          )
+        );
+
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // Administrator registry
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId)
+        && isAdmin()
+        && isValidAdminRecord(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(userId) && isAdmin() && userId != request.auth.uid;
+    }
+  }
+}

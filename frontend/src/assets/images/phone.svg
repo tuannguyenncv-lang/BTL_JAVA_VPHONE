@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" role="img" aria-label="Điện thoại">
+  <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#2554d8"/><stop offset="1" stop-color="#6d9cff"/></linearGradient></defs>
+  <rect width="240" height="180" rx="20" fill="#e8eefc"/>
+  <rect x="79" y="18" width="82" height="144" rx="14" fill="#1c2434"/>
+  <rect x="85" y="29" width="70" height="116" rx="8" fill="url(#g)"/>
+  <circle cx="120" cy="153" r="3" fill="#aab5ca"/><circle cx="96" cy="25" r="3" fill="#aab5ca"/>
+  <path d="M101 102c12-25 28-25 40 0" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".85"/>
+</svg>
